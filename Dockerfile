@@ -3,7 +3,10 @@
 # The GIS stack (GDAL/GEOS/PROJ + geopandas/rasterio/fiona/shapely/pyproj) is the
 # painful part to install, so we get it from conda-forge via micromamba instead
 # of compiling wheels. Everything else is a thin pip layer on top.
-FROM mambaorg/micromamba:1.5-jammy
+# Use the Google-hosted Docker Hub cache by default. Override this build arg
+# with the canonical Docker Hub ref or an operator-approved mirror if needed.
+ARG GISCLAW_BASE_IMAGE=mirror.gcr.io/mambaorg/micromamba:1.5-jammy
+FROM ${GISCLAW_BASE_IMAGE}
 
 USER root
 WORKDIR /app

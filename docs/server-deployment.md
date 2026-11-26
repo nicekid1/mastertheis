@@ -79,10 +79,13 @@ docker --context shahrkav compose -p shahrkav \
   -f docker-compose.rootless.yml -f docker-compose.server.yml up -d
 ```
 
-ساخت image به دسترسی registry و دریافت وابستگی‌ها نیاز دارد. اگر دریافت image
-پایه یا dependency شکست خورد، علت registry/DNS/دسترسی سرور را رفع کنید؛ daemon
-ناامن، اجرای privileged یا socket ریشه را جایگزین نکنید. این محیط فعلی دسترسی
-به VPS شما ندارد و موفقیت build روی سرور هنوز تأیید نشده است.
+ساخت image ابتدا از mirror میزبان imageهای Docker Hub استفاده می‌کند. اگر آن
+mirror هم در دسترس نبود، image پایه را از یک registry مورد اعتماد که سازمان یا
+ارائه‌دهندهٔ سرور تأیید کرده در `GISCLAW_BASE_IMAGE` جایگزین کنید؛ mirror ناشناس
+یا image هم‌نامِ تأییدنشده را وارد زنجیرهٔ build نکنید. دریافت dependencyهای
+Conda و pip نیز به دسترسی شبکه نیاز دارد. اگر build شکست خورد، daemon ناامن،
+اجرای privileged یا socket ریشه را جایگزین نکنید. این محیط فعلی دسترسی به VPS
+شما ندارد و موفقیت mirror/build روی سرور هنوز تأیید نشده است.
 
 ## دامنه، Nginx و HTTPS
 
