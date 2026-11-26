@@ -32,7 +32,7 @@ async function login() {
       <div class="auth-brand"><BrandMark /><div><h1>{{ BRAND_NAME }}</h1><p>{{ brandTagline('fa') }}</p></div></div>
       <h2>ورود به فضای اختصاصی</h2>
       <p>حساب کاربری خود را از مدیر سامانه دریافت کنید.</p>
-      <label for="login-user">نام کاربری</label><input id="login-user" v-model="username" autocomplete="username" dir="ltr" required maxlength="64" />
+      <label for="login-user">نام کاربری</label><input id="login-user" v-model="username" autocomplete="username" dir="auto" required />
       <label for="login-password">رمز عبور</label><input id="login-password" v-model="password" autocomplete="current-password" type="password" dir="ltr" required maxlength="256" />
       <button class="primary-btn" :disabled="busy">{{ busy ? 'در حال ورود…' : 'ورود' }}</button>
       <small>اگر سامانه تازه نصب شده است، مدیر باید حساب اولیه را از خط فرمان ایجاد کند.</small>

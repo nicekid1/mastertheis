@@ -18,7 +18,7 @@ docker compose up -d --build gisclaw
 docker compose exec gisclaw python -m app.auth create-admin --workspace /workspace
 ```
 
-The command asks for a username and nonempty password; the old 12-character minimum has been removed. The 256-character upper limit remains. Short passwords are accepted, but strong passwords are still recommended. The password is not echoed or placed in shell history. Locally, use `python -m app.auth create-admin --workspace /absolute/workspace/path` with the same workspace as the server. The CLI can create a recovery admin if all credentials are lost. Do not run it against the source directory accidentally.
+The command asks for a nonempty username and password. Usernames may use Unicode and are not limited to a fixed length; surrounding whitespace is trimmed and case is normalized for login. The 256-character upper limit for passwords remains. The password is not echoed or placed in shell history. Locally, use `python -m app.auth create-admin --workspace /absolute/workspace/path` with the same workspace as the server. The CLI can create a recovery admin if all credentials are lost. Do not run it against the source directory accidentally.
 
 Public registration is explicitly disabled: `/api/auth/register` and `/api/auth/signup` return 403, and the login page contains no registration form. Account creation is administrator-only (apart from the trusted local bootstrap CLI).
 

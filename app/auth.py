@@ -4,7 +4,6 @@ import hashlib
 import hmac
 import json
 import os
-import re
 import secrets
 import sqlite3
 import time
@@ -64,16 +63,17 @@ class Accounts:
             conn.close()
 
     def create(self, username, password, role='user'):
-        if not isinstance(username, str) or not re.fullmatch(r'[a-zA-Z0-9_.-]{3,64}', username):
-            raise ValueError('نام کاربری باید ۳ تا ۶۴ نویسهٔ لاتین، عدد، خط تیره یا زیرخط باشد.')
+        if not isinstance(username, str) or not username.strip():
+            raise ValueError('نام کاربری نمی‌تواند خالی باشد.')
         if role not in ('admin', 'user'):
             raise ValueError('نقش نامعتبر است.')
+        username = username.strip().lower()
         uid = secrets.token_hex(16)
         encoded = password_hash(password)
         try:
             with self.db() as db:
                 db.execute('INSERT INTO users(id, username, password, role, quota) VALUES(?,?,?,?,?)',
-                           (uid, username.lower(), encoded, role, QUOTA))
+                           (uid, username, encoded, role, QUOTA))
         except sqlite3.IntegrityError:
             raise ValueError('نام کاربری قبلاً ثبت شده است.')
         os.makedirs(self.root(self.get(uid)), mode=0o700, exist_ok=True)
@@ -128,7 +128,7 @@ class Accounts:
             if attempt and attempt['count'] >= 10:
                 raise ValueError('تلاش‌های ورود بیش از حد است؛ ۱۵ دقیقه بعد دوباره امتحان کنید.')
             db.execute('INSERT INTO attempts VALUES(?,1,?) ON CONFLICT(key) DO UPDATE SET count=count+1', (key, now))
-            row = db.execute('SELECT * FROM users WHERE username=?', (str(username).lower(),)).fetchone()
+            row = db.execute('SELECT * FROM users WHERE username=?', (str(username).strip().lower(),)).fetchone()
         valid = verify(password, row['password'] if row else self.dummy)
         if not row or not row['active'] or not valid:
             raise ValueError('نام کاربری یا رمز عبور نادرست است.')

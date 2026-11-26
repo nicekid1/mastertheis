@@ -38,6 +38,17 @@ def test_passwords_sessions_and_last_admin(tmp_path):
         store.login('administrator', 'changed-password-123', 'bad-address')
 
 
+def test_usernames_accept_unicode_and_more_than_64_characters(tmp_path):
+    store = Accounts(str(tmp_path))
+    username = 'کاربر-شهرکاو-' + ('الف' * 70)
+    created = store.create(username, 'password-123', 'admin')
+    assert created['username'] == username.lower()
+    token, logged_in = store.login(username, 'password-123', 'localhost')
+    assert token and logged_in['username'] == username.lower()
+    with pytest.raises(ValueError, match='نام کاربری نمی‌تواند خالی باشد'):
+        store.create('   ', 'password-123', 'admin')
+
+
 def test_unauthenticated_and_role_boundaries(client):
     with httpx.Client(base_url=str(client.base_url)) as anon:
         for path in ('/api/projects', '/api/models', '/api/account', '/api/admin/users', '/api/settings'):
