@@ -1,0 +1,35 @@
+# Production-style trial override. Keep the app bound to loopback from the
+# rootless compose file and put a host HTTPS reverse proxy in front of it.
+services:
+  gisclaw:
+    # The base rootless file optionally imports .env into the container. In
+    # server mode, only the explicit environment below is passed; secrets are
+    # configured in the UI rather than copied from Compose interpolation.
+    env_file: /dev/null
+    environment:
+      GISCLAW_SECURE_COOKIES: "1"
+      GISCLAW_DISABLE_LEGACY_RUN: "1"
+      GISCLAW_TOKEN_BUDGET_ENABLED: "1"
+      GISCLAW_TEXT_CHAT_ENABLED: "0"
+      GISCLAW_LLM_TIMEOUT_SECONDS: "${GISCLAW_LLM_TIMEOUT_SECONDS:-120}"
+      FORWARDED_ALLOW_IPS: "${GISCLAW_TRUSTED_PROXY_IP:-172.29.240.1}"
+      PYTHONDONTWRITEBYTECODE: "1"
+      GISCLAW_LOG: /tmp/gisclaw-server.log
+    read_only: true
+    tmpfs:
+      - /tmp:rw,noexec,nosuid,nodev,size=256m
+      - /run:rw,nosuid,nodev,size=16m
+      - /app/.mplconfig:rw,noexec,nosuid,nodev,size=32m
+    init: true
+    stop_grace_period: 30s
+    networks:
+      default:
+        ipv4_address: "${GISCLAW_APP_IP:-172.29.240.2}"
+
+networks:
+  default:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: "${GISCLAW_DOCKER_SUBNET:-172.29.240.0/24}"
+          gateway: "${GISCLAW_TRUSTED_PROXY_IP:-172.29.240.1}"

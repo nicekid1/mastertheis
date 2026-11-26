@@ -1,0 +1,13 @@
+# Install Caddy on the host and replace the example domain with your DNS name.
+# DNS A/AAAA records must point to this server; allow inbound TCP 80 and 443.
+shahrkav.example.com {
+	encode zstd gzip
+	reverse_proxy 127.0.0.1:8765
+	header {
+		X-Content-Type-Options nosniff
+		Referrer-Policy strict-origin-when-cross-origin
+		X-Frame-Options DENY
+		Permissions-Policy "camera=(), microphone=(), geolocation=()"
+		Strict-Transport-Security "max-age=31536000"
+	}
+}

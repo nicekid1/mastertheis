@@ -1,0 +1,25 @@
+# Use explicitly: docker --context rootless compose -f docker-compose.rootless.yml up -d
+# Never point this socket at the privileged system Docker daemon.
+services:
+  gisclaw:
+    image: gisclaw:isolated
+    container_name: gisclaw_rootless_app
+    ports:
+      - "127.0.0.1:${GISCLAW_HTTP_PORT:-8765}:8765"
+    env_file:
+      - path: .env
+        required: false
+    environment:
+      GISCLAW_WORKSPACE: /workspace
+      GISCLAW_ISOLATED_ANALYSIS: "1"
+      GISCLAW_WORKER_IMAGE: gisclaw:isolated
+      DOCKER_HOST: unix:///run/gisclaw/docker.sock
+    volumes:
+      - ${GISCLAW_DATA:-./projects}:/workspace
+      - ${GISCLAW_ROOTLESS_SOCKET:-/run/user/1000/docker.sock}:/run/gisclaw/docker.sock
+      - /usr/bin/docker:/usr/local/bin/docker:ro
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    mem_limit: 1g
+    pids_limit: 256
+    restart: unless-stopped

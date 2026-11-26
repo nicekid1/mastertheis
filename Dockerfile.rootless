@@ -1,0 +1,6 @@
+# Reuse the installed GIS runtime without downloading/reinstalling dependencies.
+# Seed this local base image in the dedicated rootless daemon before building.
+FROM gisclaw:runtime-base
+ENV PROJ_DATA=/opt/conda/share/proj
+COPY src/ /app/src/
+COPY app/ /app/app/
