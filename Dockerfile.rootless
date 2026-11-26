@@ -5,3 +5,4 @@ FROM ${GISCLAW_BASE_IMAGE}
 ENV PROJ_DATA=/opt/conda/share/proj
 COPY src/ /app/src/
 COPY app/ /app/app/
+RUN chmod -R a+rX /app/src /app/app

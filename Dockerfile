@@ -50,6 +50,11 @@ RUN mkdir -p /app/.mplconfig \
 COPY src/ /app/src/
 COPY app/ /app/app/
 
+# Isolated workers run as UID 65534. Preserve the image's root ownership, but
+# ensure that unprivileged workers can traverse package directories and read
+# the Python modules copied from a developer checkout (which may be mode 0640).
+RUN chmod -R a+rX /app/src /app/app
+
 # 6) Runtime config
 ENV GISCLAW_WORKSPACE=/workspace \
     PROJ_DATA=/opt/conda/share/proj \
