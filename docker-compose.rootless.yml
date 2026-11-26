@@ -1,9 +1,8 @@
-# Use explicitly: docker --context rootless compose -f docker-compose.rootless.yml up -d
+# Server profile: use a dedicated rootless context and Compose project name.
 # Never point this socket at the privileged system Docker daemon.
 services:
   gisclaw:
-    image: gisclaw:isolated
-    container_name: gisclaw_rootless_app
+    image: ${GISCLAW_APP_IMAGE:-shahrkav:isolated}
     ports:
       - "127.0.0.1:${GISCLAW_HTTP_PORT:-8765}:8765"
     env_file:
@@ -12,7 +11,7 @@ services:
     environment:
       GISCLAW_WORKSPACE: /workspace
       GISCLAW_ISOLATED_ANALYSIS: "1"
-      GISCLAW_WORKER_IMAGE: gisclaw:isolated
+      GISCLAW_WORKER_IMAGE: ${GISCLAW_APP_IMAGE:-shahrkav:isolated}
       DOCKER_HOST: unix:///run/gisclaw/docker.sock
     volumes:
       - ${GISCLAW_DATA:-./projects}:/workspace
