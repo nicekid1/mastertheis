@@ -9,9 +9,11 @@ import { esc } from '../format';
 import Modal from './Modal.vue';
 const w = inject(workspaceKey);
 const { state, guard } = w;
-const host = ref(null), layers = reactive([]), context = ref(null), symbology = ref(null), attributes = ref(null), filter = ref(''), loading = ref('');
+const host = ref(null), layers = reactive([]), context = ref(null), symbology = ref(null), attributes = ref(null), filter = ref('');
 let map, basemap, resizeObserver, revision = 0, colorIndex = 0;
 const pending = new Map();
+const loadingLayers = reactive(new Map());
+const loading = computed(() => [...loadingLayers.values()].at(-1) || '');
 const colors = ['#2f6f9f', '#B14B26', '#3f7d58', '#8a5fb0', '#b0892f', '#4a7a8c'];
 const baseName = computed(() => state.basemap?.tiles && state.basemap?.ready ? state.basemap.display : 'offline reference');
 const attrColumns = computed(() => [...new Set((attributes.value?.gj.features || []).slice(0, 200).flatMap(f => Object.keys(f.properties || {})))]);
@@ -53,13 +55,13 @@ function selectFeature(item, path) {
   map.closePopup(); publishSelection();
 }
 function remove(item) { clearSelection(item.key); map.removeLayer(item.layer); layers.splice(layers.indexOf(item), 1); if (symbology.value === item) symbology.value = null; }
-function clear() { state.selectingFeatures = false; revision++; pending.clear(); [...layers].forEach(remove); colorIndex = 0; attributes.value = null; context.value = null; }
+function clear() { state.selectingFeatures = false; revision++; pending.clear(); loadingLayers.clear(); [...layers].forEach(remove); colorIndex = 0; attributes.value = null; context.value = null; }
 async function addVector(name, where, url, toggle = true) {
   const key = `${where}/${name}`;
   const previous = layers.find(l => l.key === key);
   if (previous) { if (toggle) { remove(previous); return; } remove(previous); }
   const current = revision, token = Symbol(); pending.set(key, token);
-  loading.value = name;
+  loadingLayers.set(token, name);
   try {
     await nextTick();
     await new Promise(resolve => requestAnimationFrame(resolve));
@@ -99,19 +101,25 @@ async function addVector(name, where, url, toggle = true) {
     return { table: { columns, rows: features.slice(0, 2000).map(feature => columns.map(column => feature.properties?.[column] ?? null)), total: gj.totalFeatures || features.length, truncated: (gj.totalFeatures || features.length) > 2000 } };
   } finally {
     if (pending.get(key) === token) pending.delete(key);
-    if (loading.value === name) loading.value = '';
+    loadingLayers.delete(token);
   }
 }
 async function addRaster(name, where, url) {
   const key = `${where}/${name}`, current = revision, token = Symbol(); pending.set(key, token);
-  const payload = await api(url);
-  if (current !== revision || pending.get(key) !== token) return;
-  pending.delete(key);
-  if (!payload.bounds || !payload.image) throw new Error(t('overlay failed'));
-  const old = layers.find(l => l.key === key); if (old) remove(old);
-  const b = payload.bounds;
-  const layer = L.imageOverlay(payload.image, [[b.south, b.west], [b.north, b.east]], { opacity: .85 }).addTo(map);
-  layers.push({ key, name, kind: 'raster', layer: markRaw(layer), color: '#3f7d58', opacity: .85, visible: true }); fit(layer);
+  loadingLayers.set(token, name);
+  try {
+    const payload = await api(url);
+    if (current !== revision || pending.get(key) !== token) return;
+    pending.delete(key);
+    if (!payload.bounds || !payload.image) throw new Error(t('overlay failed'));
+    const old = layers.find(l => l.key === key); if (old) remove(old);
+    const b = payload.bounds;
+    const layer = L.imageOverlay(payload.image, [[b.south, b.west], [b.north, b.east]], { opacity: .85 }).addTo(map);
+    layers.push({ key, name, kind: 'raster', layer: markRaw(layer), color: '#3f7d58', opacity: .85, visible: true }); fit(layer);
+  } finally {
+    if (pending.get(key) === token) pending.delete(key);
+    loadingLayers.delete(token);
+  }
 }
 function toggle(item) { item.visible = !item.visible; item.visible ? item.layer.addTo(map) : map.removeLayer(item.layer); }
 function style(item) { if (item.kind === 'raster') item.layer.setOpacity(Number(item.opacity)); else item.layer.setStyle({ color: item.color, fillColor: item.color, fillOpacity: Number(item.fillOpacity) }); for (const entry of selected.values()) if (entry.item.key === item.key) highlight(entry.path); }
@@ -144,6 +152,7 @@ onBeforeUnmount(() => { revision++; resizeObserver?.disconnect(); document.remov
 <template>
   <div id="mapView" class="viewer-body" :class="{ hidden: state.tab !== 'map' }">
     <div id="mapWrap" class="map-canvas-wrap"><div id="mapLeaflet" ref="host" :class="{ 'feature-selecting': state.selectingFeatures }"></div>
+      <div v-if="loading" class="map-load-indicator" role="status" aria-live="polite"><span class="loading-spinner" aria-hidden="true"></span><span>{{ t('Loading layer {name}…', { name: loading }) }}</span></div>
       <div class="feature-selection-toolbar">
         <button class="secondary-btn" :class="{ 'selection-active': state.selectingFeatures }" :aria-pressed="state.selectingFeatures" :disabled="state.running" @click="state.selectingFeatures = !state.selectingFeatures">{{ t(state.selectingFeatures ? 'Finish selecting' : 'Select features') }}</button>
         <template v-if="state.selectionCount"><span>{{ t('{n} features selected', { n: state.selectionCount }) }}</span><button class="reset-btn" :disabled="state.running" @click="clearSelection()">{{ t('Clear selection') }}</button></template>

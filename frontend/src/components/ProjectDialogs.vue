@@ -1,7 +1,7 @@
 <script setup>
 import { inject, ref, reactive, computed } from 'vue';
 import { workspaceKey } from '../workspace';
-import { api, request } from '../api';
+import { api, uploadFile } from '../api';
 import { t } from '../i18n';
 import { humanSize, extOf } from '../format';
 import Modal from './Modal.vue';
@@ -9,6 +9,7 @@ import { isAdmin } from '../auth';
 import { reportError } from '../feedback';
 const w = inject(workspaceKey), { state, guard } = w;
 const name = ref(''), target = ref(null), busy = ref(false), message = ref('');
+const uploadProgress = reactive({ total: 0, sent: 0, percent: 0, current: 0, count: 0, filename: '' });
 const browse = reactive({ here: '', entries: [], selected: new Set(), dragging: false });
 const archived = ref([]), confirm = ref(null), filesInput = ref(null), folderInput = ref(null);
 const crumbs = computed(() => [{ name: t('workspace'), path: '' }, ...browse.here.split('/').filter(Boolean).map((part, i, parts) => ({ name: part, path: parts.slice(0, i + 1).join('/') }))]);
@@ -60,10 +61,18 @@ async function attach() {
 async function upload(fileList) {
   const files = Array.from(fileList || []); if (!files.length || busy.value) return;
   const project = target.value.project;
-  busy.value = true; let ok = 0, failed = 0;
-  for (const file of files) {
+  busy.value = true; let ok = 0, failed = 0, completedBytes = 0;
+  Object.assign(uploadProgress, { total: files.reduce((sum, file) => sum + file.size, 0), sent: 0, percent: 0, current: 0, count: files.length, filename: '' });
+  for (const [index, file] of files.entries()) {
+    uploadProgress.current = index + 1; uploadProgress.filename = file.webkitRelativePath || file.name;
     message.value = t('uploading {i}/{n} — {name}', { i: ok + failed + 1, n: files.length, name: file.name });
-    try { await request(w.projectUrl(`/upload?name=${encodeURIComponent(file.name)}&rel=${encodeURIComponent(file.webkitRelativePath || file.name)}`, project.id), { method: 'POST', body: file }); ok++; }
+    try {
+      await uploadFile(w.projectUrl(`/upload?name=${encodeURIComponent(file.name)}&rel=${encodeURIComponent(file.webkitRelativePath || file.name)}`, project.id), file, loaded => {
+        uploadProgress.sent = Math.min(uploadProgress.total, completedBytes + loaded);
+        uploadProgress.percent = uploadProgress.total ? Math.floor(uploadProgress.sent * 100 / uploadProgress.total) : 0;
+      });
+      ok++;
+    }
     catch (error) {
       failed++;
       reportError(new Error(`${file.name}: ${error.message}`));
@@ -71,7 +80,7 @@ async function upload(fileList) {
         failed = files.length - ok;
         break;
       }
-    }
+    } finally { completedBytes += file.size; }
   }
   busy.value = false; state.modal = '';
   await guard(async () => { await w.refreshTree(); w.addMessage(failed ? 'error' : 'system', t('Uploaded {n} file(s) to {p}.', { n: ok, p: project.name }) + (failed ? t(' {n} failed.', { n: failed }) : '')); const check = await api(w.projectUrl('/data_check', project.id)); for (const notice of check.notices || []) w.addMessage('system', notice); });
@@ -88,6 +97,11 @@ defineExpose({ open });
   <Modal id="browseModal" close-id="browseClose" :open="state.modal === 'browse'" :title="t('Add data')" @close="close"><div @dragover.prevent="browse.dragging = true" @dragleave.prevent="browse.dragging = false" @drop.prevent="browse.dragging = false; upload($event.dataTransfer.files)" :class="{ dragging: browse.dragging }">
     <div class="browse-upload"><button id="btnUploadFiles" class="reset-btn" :disabled="busy" @click="filesInput.click()">{{ t('Upload files…') }}</button><button id="btnUploadFolder" class="reset-btn" :disabled="busy" @click="folderInput.click()">{{ t('Upload a folder…') }}</button></div>
     <input id="uploadFiles" ref="filesInput" type="file" multiple hidden @change="uploadChange" /><input id="uploadFolder" ref="folderInput" type="file" webkitdirectory multiple hidden @change="uploadChange" />
+    <div v-if="busy && uploadProgress.count" class="upload-progress" role="status" aria-live="polite">
+      <div class="upload-progress-head"><span>{{ t('Uploading {i}/{n}: {name}', { i: uploadProgress.current, n: uploadProgress.count, name: uploadProgress.filename }) }}</span><bdi>{{ uploadProgress.percent }}%</bdi></div>
+      <progress :value="uploadProgress.percent" max="100" :aria-label="t('Upload progress')"></progress>
+      <div class="upload-progress-meta">{{ humanSize(uploadProgress.sent) }} / {{ humanSize(uploadProgress.total) }}</div>
+    </div>
     <div v-if="isAdmin" id="browsePath" class="browse-path"><template v-for="(crumb, i) in crumbs" :key="crumb.path"><span v-if="i"> / </span><a href="#" @click.prevent="guard(() => loadBrowse(crumb.path))">{{ crumb.name }}</a></template></div>
     <div id="browseList" class="browse-list"><div v-if="browse.here" class="browse-row browse-up" @click="guard(() => loadBrowse(browse.here.split('/').slice(0, -1).join('/')))">⬑ ..</div><div v-for="entry in browse.entries" :key="entry.rel" class="browse-row" :class="{ 'is-dir': entry.is_dir, picked: browse.selected.has(entry.rel) }" @click="entry.is_dir ? guard(() => loadBrowse(entry.rel)) : pick(entry.rel)"><input type="checkbox" class="browse-cb" :checked="browse.selected.has(entry.rel)" @click.stop="pick(entry.rel)" /><span class="browse-ic">{{ entry.is_dir ? '▱' : '▧' }}</span><span class="browse-name">{{ entry.name }}</span><span class="browse-size">{{ entry.is_dir ? '' : humanSize(entry.size) }}</span></div></div>
     <div class="modal-foot"><span id="browseCount">{{ busy ? message : t('{n} selected', { n: browse.selected.size }) }}</span><span class="ca-spacer"></span><button id="browseCancel" class="reset-btn" :disabled="busy" @click="close">{{ t('Cancel') }}</button><button id="browseAttach" class="primary-btn" :disabled="busy || !browse.selected.size" @click="attach">{{ t('Attach selected') }}</button></div>

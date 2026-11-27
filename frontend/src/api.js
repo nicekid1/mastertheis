@@ -22,6 +22,31 @@ export async function request(url, options = {}) {
   return response;
 }
 
+export function uploadFile(url, file, onProgress = () => {}) {
+  return new Promise((resolve, reject) => {
+    const xhr = new XMLHttpRequest();
+    xhr.open('POST', url);
+    if (url.startsWith('/api/')) xhr.setRequestHeader('X-GISclaw', '1');
+    xhr.upload.addEventListener('progress', event => {
+      if (event.lengthComputable) onProgress(event.loaded, event.total);
+    });
+    xhr.addEventListener('load', () => {
+      let body;
+      try { body = JSON.parse(xhr.responseText); } catch {}
+      if (xhr.status >= 200 && xhr.status < 300) { resolve(body); return; }
+      if (xhr.status === 401 && typeof window !== 'undefined') window.dispatchEvent(new Event('auth-expired'));
+      const error = new Error(errorMessage(body, `Request failed (${xhr.status})`));
+      error.status = xhr.status;
+      error.code = body?.code;
+      error.details = body;
+      reject(error);
+    });
+    xhr.addEventListener('error', () => reject(new Error('Network error while uploading file')));
+    xhr.addEventListener('abort', () => reject(new Error('File upload was interrupted')));
+    xhr.send(file);
+  });
+}
+
 export async function api(url, body, method = body === undefined ? 'GET' : 'POST') {
   const response = await request(url, {
     method,

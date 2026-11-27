@@ -160,6 +160,14 @@ button { font:inherit; color:inherit; }
 #mapView { direction:ltr; }
 .map-canvas-wrap { flex:1; position:relative; background:var(--map-bg); overflow:hidden; }
 #mapLeaflet { position:absolute; inset:0; }
+.map-load-indicator { position:absolute; z-index:850; top:58px; right:14px; display:flex; align-items:center; gap:9px; max-width:min(420px, calc(100% - 28px)); padding:9px 13px; border:1px solid var(--line); border-radius:9px; background:var(--panel); color:var(--ink); box-shadow:var(--shadow-sm); font-size:12px; direction:rtl; }
+.loading-spinner { width:16px; height:16px; flex:0 0 auto; border:2px solid var(--line); border-top-color:var(--accent); border-radius:50%; animation:loading-spin .8s linear infinite; }
+@keyframes loading-spin { to { transform:rotate(360deg); } }
+.upload-progress { display:grid; gap:7px; margin:12px 2px; padding:12px; border:1px solid var(--line); border-radius:8px; background:var(--panel-sink); color:var(--ink); font-size:12px; }
+.upload-progress-head { display:flex; justify-content:space-between; align-items:center; gap:10px; }
+.upload-progress-head span { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.upload-progress progress { width:100%; height:9px; accent-color:var(--accent); }
+.upload-progress-meta { color:var(--ink-muted); font-size:11px; direction:ltr; text-align:end; }
 .leaflet-container { background:var(--map-bg); font-family:var(--font-ui); outline:none; }
 .leaflet-control-attribution {
   background:var(--map-attribution)!important; color:var(--ink-soft)!important; font-size:10px!important;
