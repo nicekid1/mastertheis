@@ -828,6 +828,47 @@ def _vector_preview_cache_put(key, payload: bytes):
         _VECTOR_PREVIEW_CACHE[key] = payload
         _VECTOR_PREVIEW_CACHE_BYTES += len(payload)
 
+
+def _repair_preview_geometries(gdf, tolerance=0):
+    """Repair only the display copy; keep rows and source feature IDs intact."""
+    from shapely.validation import make_valid
+
+    repaired = omitted = 0
+    geometries = []
+    for geometry in gdf.geometry:
+        if geometry is None:
+            geometries.append(None)
+            continue
+        try:
+            if not geometry.is_valid:
+                geometry = make_valid(geometry)
+                repaired += 1
+            if geometry.is_empty:
+                geometries.append(None)
+                omitted += 1
+                continue
+            if tolerance > 0:
+                try:
+                    geometry = geometry.simplify(tolerance, preserve_topology=True)
+                except Exception:
+                    pass  # A valid original is preferable to losing the whole layer.
+            geometry.__geo_interface__  # Ensure GeoJSON conversion can read this geometry.
+            geometries.append(geometry)
+        except Exception:
+            try:
+                geometry = geometry.buffer(0)
+                if geometry.is_empty:
+                    raise ValueError('empty repaired geometry')
+                geometry.__geo_interface__
+                geometries.append(geometry)
+                repaired += 1
+            except Exception:
+                geometries.append(None)
+                omitted += 1
+    copy = gdf.copy()
+    copy['geometry'] = geometries
+    return copy, repaired, omitted
+
 def _serve_geo_or_image(fpath: str):
     """Serve a file for the viewer; convert shp/tif to web-friendly forms."""
     ext = fpath.lower().rsplit(".", 1)[-1] if "." in fpath else ""
@@ -872,11 +913,27 @@ def _serve_geo_or_image(fpath: str):
                 tol = max(maxx - minx, maxy - miny) / 3000.0
                 if tol > 0:
                     gdf = gdf.copy()
-                    gdf["geometry"] = gdf.geometry.simplify(tol, preserve_topology=False)
+                    try:
+                        gdf["geometry"] = gdf.geometry.simplify(tol, preserve_topology=True)
+                    except Exception as error:
+                        log.warning('Vector preview simplification failed for %s: %s', fpath, error)
+                        gdf, repaired, omitted = _repair_preview_geometries(gdf, tol)
+                        if repaired or omitted:
+                            notice_parts.append(
+                                f"در پیش‌نمایش نقشه {repaired} هندسه ترمیم و {omitted} هندسهٔ "
+                                "غیرقابل‌خواندن حذف شد؛ فایل اصلی تغییر نکرده است.")
                 notice_parts.append(
                     "Geometry detail is simplified for map display. The source "
                     "data is unchanged.")
-            payload = gdf.to_json()
+            try:
+                payload = gdf.to_json()
+            except Exception as error:
+                log.warning('Vector preview serialization failed for %s: %s', fpath, error)
+                gdf, repaired, omitted = _repair_preview_geometries(gdf)
+                payload = gdf.to_json()
+                notice_parts.append(
+                    f"در پیش‌نمایش نقشه {repaired} هندسه ترمیم و {omitted} هندسهٔ "
+                    "غیرقابل‌خواندن حذف شد؛ فایل اصلی تغییر نکرده است.")
             metadata = {"totalFeatures": total_features, "selectionVersion": version}
             if notice_parts:
                 metadata["_notice"] = " ".join(notice_parts)
@@ -888,6 +945,9 @@ def _serve_geo_or_image(fpath: str):
             # Fall back to raw bytes for plain JSON that geopandas can't parse as vector
             if ext in ("geojson", "json"):
                 return FileResponse(fpath, media_type="application/json")
+            if 'Points of LinearRing do not form a closed linestring' in str(e):
+                log.warning('Unreadable polygon ring in %s: %s', fpath, e)
+                return JSONResponse({"error": "حلقهٔ یک یا چند چندضلعی در این لایه بسته نیست و خواندن فایل ممکن نشد. یک نسخهٔ ترمیم‌شده از لایه بسازید و دوباره بارگذاری کنید؛ فایل اصلی تغییری نکرده است."}, status_code=422)
             return JSONResponse({"error": f"vector preview failed: {e}"}, status_code=500)
     if ext in ("tif", "tiff"):
         try:
