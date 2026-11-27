@@ -20,7 +20,6 @@ info() { printf '\n==> %s\n' "$*"; }
 [[ "$(id -u)" -ne 0 ]] || die "با کاربر مالک Docker روت‌لس اجرا کن (مثلاً: sudo -u dev -H ./deploy.sh)، نه root."
 command -v git >/dev/null || die 'git نصب نیست.'
 command -v docker >/dev/null || die 'docker نصب نیست.'
-command -v npm >/dev/null || die 'npm نصب نیست؛ برای build فرانت‌اند Node.js و npm لازم است.'
 
 cd "$PROJECT_DIR"
 git rev-parse --is-inside-work-tree >/dev/null 2>&1 || die 'پوشهٔ اسکریپت، مخزن Git نیست.'
@@ -40,16 +39,10 @@ docker --context rootless image inspect "$BASE_IMAGE" >/dev/null 2>&1 || die "im
 info "دریافت تغییرات شاخهٔ $BRANCH"
 git pull --ff-only origin "$BRANCH"
 
-info 'نصب وابستگی‌ها، اجرای تست‌های فرانت‌اند و ساخت فایل‌های وب'
-(
-  cd "$PROJECT_DIR/frontend"
-  npm ci
-  npm test
-  npm run build
-)
+[[ -s "$PROJECT_DIR/app/web/index.html" ]] || die 'فایل‌های آمادهٔ فرانت‌اند در app/web پیدا نشدند.'
 
 info "ساخت image ایزولهٔ $APP_IMAGE"
-docker --context rootless build --no-cache \
+docker --context rootless build \
   --build-arg "GISCLAW_BASE_IMAGE=$BASE_IMAGE" \
   -f "$PROJECT_DIR/Dockerfile.rootless" \
   -t "$APP_IMAGE" "$PROJECT_DIR"
