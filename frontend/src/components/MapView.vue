@@ -19,6 +19,12 @@ const baseName = computed(() => state.basemap?.tiles && state.basemap?.ready ? s
 const attrColumns = computed(() => [...new Set((attributes.value?.gj.features || []).slice(0, 200).flatMap(f => Object.keys(f.properties || {})))]);
 const attrRows = computed(() => (attributes.value?.gj.features || []).slice(0, 2000).map(f => f.properties || {}).filter(r => Object.values(r).some(v => String(v ?? '').toLowerCase().includes(filter.value.toLowerCase())) || !filter.value));
 function fit(layer) { const bounds = layer?.getBounds(); if (bounds?.isValid()) map.fitBounds(bounds, { padding: [24, 24] }); }
+function openAttributes(item) {
+  if (item?.kind !== 'vector') return;
+  attributes.value = item;
+  filter.value = '';
+  context.value = null;
+}
 const selected = new Map();
 function publishSelection() {
   const groups = new Map();
@@ -90,8 +96,8 @@ async function addVector(name, where, url, toggle = true) {
     if (interactive) layer.on('click', event => {
       if (state.selectingFeatures && event.layer?.feature) { selectFeature(item, event.layer); return; }
       const feature = event.layer?.feature;
-      const rows = Object.entries(feature?.properties || {}).slice(0, 8)
-        .map(([key, value]) => `<div><b>${esc(key)}</b>: ${esc(value)}</div>`).join('');
+      const rows = Object.entries(feature?.properties || {})
+        .map(([key, value]) => `<div><b>${esc(key)}</b>: ${esc(value && typeof value === 'object' ? JSON.stringify(value) : value)}</div>`).join('');
       if (rows) L.popup({ maxWidth: 260 }).setLatLng(event.latlng)
         .setContent(`<div class="gp-popup">${rows}</div>`).openOn(map);
     });
@@ -160,12 +166,12 @@ onBeforeUnmount(() => { revision++; resizeObserver?.disconnect(); document.remov
       </div><div class="map-compass">N</div></div>
     <aside id="legend" class="legend"><div class="legend-title">{{ t('Map layers') }}</div><div id="legendLayers" class="legend-layers">
       <div class="legend-layer"><div class="legend-layer-head"><span class="legend-layer-name">{{ t('Basemap') }}</span><span class="legend-layer-meta">{{ t(baseName) }}</span></div></div>
-      <div v-for="item in layers" :key="item.key" class="legend-layer interactive" :class="{ 'hidden-layer': !item.visible }" :title="item.key" @contextmenu.prevent.stop="menu($event, item)"><div class="legend-layer-head"><button class="lyr-vis" :aria-label="t('Toggle visibility')" @click.stop="toggle(item)">◉</button><span class="legend-layer-name">{{ item.name }}</span><span class="legend-layer-meta">{{ t(item.kind) }}</span></div><div class="legend-chips"><span class="chip"><i :style="{ background: item.color }"></i>{{ t(item.kind) }}</span></div></div>
+      <div v-for="item in layers" :key="item.key" class="legend-layer interactive" :class="{ 'hidden-layer': !item.visible }" :title="item.key" @contextmenu.prevent.stop="menu($event, item)"><div class="legend-layer-head"><button class="lyr-vis" :aria-label="t('Toggle visibility')" @click.stop="toggle(item)">◉</button><span class="legend-layer-name">{{ item.name }}</span><span class="legend-layer-meta">{{ t(item.kind) }}</span><button v-if="item.kind === 'vector'" class="mini-btn layer-table-btn" :aria-label="t('Attribute table')" :title="t('Attribute table')" @click.stop="openAttributes(item)">▤</button></div><div class="legend-chips"><span class="chip"><i :style="{ background: item.color }"></i>{{ t(item.kind) }}</span></div></div>
     </div><div class="legend-hint">{{ loading ? t('Loading {name}…', { name: loading }) : t(layers.length ? 'Right-click a layer for symbology, attribute table…' : 'Click a dataset on the left to show it here.') }}</div></aside>
   </div>
   <Teleport to="body">
     <div v-if="context" id="layerMenu" class="ctx-menu" :style="{ left: context.x + 'px', top: context.y + 'px' }" @click.stop>
-      <button class="ctx-item" @click="toggle(context.item); context = null">{{ t(context.item.visible ? 'Hide layer' : 'Show layer') }}</button><button class="ctx-item" @click="fit(context.item.layer); context = null">{{ t('Zoom to layer') }}</button><button class="ctx-item" @click="fitAll(); context = null">{{ t('Fit to all layers') }}</button><button class="ctx-item" @click="symbology = context.item; context = null">{{ t('Symbology…') }}</button><button class="ctx-item" :disabled="context.item.kind !== 'vector'" @click="attributes = context.item; filter = ''; context = null">{{ t('Attribute table') }}</button><button class="ctx-item danger" @click="remove(context.item); context = null">{{ t('Remove layer') }}</button>
+      <button class="ctx-item" @click="toggle(context.item); context = null">{{ t(context.item.visible ? 'Hide layer' : 'Show layer') }}</button><button class="ctx-item" @click="fit(context.item.layer); context = null">{{ t('Zoom to layer') }}</button><button class="ctx-item" @click="fitAll(); context = null">{{ t('Fit to all layers') }}</button><button class="ctx-item" @click="symbology = context.item; context = null">{{ t('Symbology…') }}</button><button class="ctx-item" :disabled="context.item.kind !== 'vector'" @click="openAttributes(context.item)">{{ t('Attribute table') }}</button><button class="ctx-item danger" @click="remove(context.item); context = null">{{ t('Remove layer') }}</button>
     </div>
     <div v-if="symbology" id="symbPop" class="symb-pop" style="right: 410px; top: 140px" @click.stop><div class="symb-h">{{ symbology.name }} <button @click="symbology = null">✕</button></div><label v-if="symbology.kind === 'vector'" class="symb-row">{{ t('Color') }}<input id="symbColor" v-model="symbology.color" type="color" @input="style(symbology)" /></label><label class="symb-row">{{ t('Opacity') }}<input v-if="symbology.kind === 'raster'" id="symbOpacity" v-model.number="symbology.opacity" type="range" min="0" max="1" step=".01" @input="style(symbology)" /><input v-else id="symbFill" v-model.number="symbology.fillOpacity" type="range" min="0" max="1" step=".01" @input="style(symbology)" /></label></div>
   </Teleport>

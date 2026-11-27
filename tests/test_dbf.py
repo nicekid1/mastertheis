@@ -3,6 +3,7 @@ import os
 import struct
 import tempfile
 import unittest
+import httpx
 
 from app.dbf import read_table
 
@@ -72,6 +73,37 @@ class DbfPreviewTests(unittest.TestCase):
                 file.write(b"not a DBF")
             with self.assertRaises(ValueError):
                 read_table(path)
+
+
+def test_regular_user_can_view_shapefile_table_and_vector_preview(client, tmp_path):
+    """Map inspection is a tenant feature, not an administrator privilege."""
+    created = client.post('/api/admin/users', json={
+        'username': 'map_view_user', 'password': 'test-password-123'
+    })
+    assert created.status_code == 200, created.text
+    user = httpx.Client(base_url=str(client.base_url), headers={'X-GISclaw': '1'}, timeout=20)
+    try:
+        login = user.post('/api/auth/login', json={
+            'username': 'map_view_user', 'password': 'test-password-123'
+        })
+        assert login.status_code == 200, login.text
+        assert user.post('/api/projects', json={'name': 'map-review'}).status_code == 200
+
+        dbf_path = tmp_path / 'roads.dbf'
+        make_dbf(dbf_path)
+        upload = user.post('/api/projects/map-review/upload?name=roads.dbf', content=dbf_path.read_bytes())
+        assert upload.status_code == 200, upload.text
+        table = user.get('/api/projects/map-review/table?where=data&path=roads.dbf')
+        assert table.status_code == 200, table.text
+        assert table.json()['columns'] == ['TYPEI', 'TYPEII', 'WIDTH', 'NAME']
+
+        geojson = b'{"type":"FeatureCollection","features":[]}'
+        upload = user.post('/api/projects/map-review/upload?name=roads.geojson', content=geojson)
+        assert upload.status_code == 200, upload.text
+        preview = user.get('/api/projects/map-review/file?where=data&path=roads.geojson')
+        assert preview.status_code == 200, preview.text
+    finally:
+        user.close()
 
 
 if __name__ == "__main__":
