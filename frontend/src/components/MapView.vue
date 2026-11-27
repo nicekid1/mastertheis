@@ -16,7 +16,7 @@ const loadingLayers = reactive(new Map());
 const loading = computed(() => [...loadingLayers.values()].at(-1) || '');
 const colors = ['#2f6f9f', '#B14B26', '#3f7d58', '#8a5fb0', '#b0892f', '#4a7a8c'];
 const baseName = computed(() => state.basemap?.tiles && state.basemap?.ready ? state.basemap.display : 'offline reference');
-const attrColumns = computed(() => [...new Set((attributes.value?.gj.features || []).slice(0, 200).flatMap(f => Object.keys(f.properties || {})))]);
+const attrColumns = computed(() => [...new Set((attributes.value?.gj.features || []).slice(0, 2000).flatMap(f => Object.keys(f.properties || {})))]);
 const attrRows = computed(() => (attributes.value?.gj.features || []).slice(0, 2000).map(f => f.properties || {}).filter(r => Object.values(r).some(v => String(v ?? '').toLowerCase().includes(filter.value.toLowerCase())) || !filter.value));
 function fit(layer) { const bounds = layer?.getBounds(); if (bounds?.isValid()) map.fitBounds(bounds, { padding: [24, 24] }); }
 function openAttributes(item) {
@@ -78,32 +78,31 @@ async function addVector(name, where, url, toggle = true) {
     if (gj._notice) w.addMessage('system', gj._notice);
     const color = colors[colorIndex++ % colors.length];
     const features = gj.type === 'Feature' ? [gj] : gj.features || [];
-    const interactive = features.length <= 50_000;
     const renderer = L.canvas({ padding: .35 });
+    let item;
     const layer = L.geoJSON(gj, {
       renderer,
-      interactive,
+      interactive: true,
       style: { color, weight: 1.3, fillColor: color, fillOpacity: .22 },
-      pointToLayer: (feature, latlng) => L.circleMarker(latlng, { renderer, interactive, radius: 5, color, fillColor: color, fillOpacity: .8, weight: 1.5 }),
+      pointToLayer: (feature, latlng) => L.circleMarker(latlng, { renderer, interactive: true, radius: 5, color, fillColor: color, fillOpacity: .8, weight: 1.5 }),
+      onEachFeature: (feature, path) => path.on('click', event => {
+        if (state.selectingFeatures) { selectFeature(item, path); return; }
+        const rows = Object.entries(feature.properties || {})
+          .map(([key, value]) => `<div><b>${esc(key)}</b>: ${esc(value && typeof value === 'object' ? JSON.stringify(value) : value)}</div>`).join('');
+        L.popup({ maxWidth: 260 }).setLatLng(event.latlng)
+          .setContent(`<div class="gp-popup">${rows || esc(t('This feature has no attribute fields.'))}</div>`).openOn(map);
+      }),
     }).addTo(map);
     const sourceUrl = new URL(url, window.location.origin);
     const source = { path: sourceUrl.searchParams.get('path') || name,
       where: sourceUrl.pathname.endsWith('/runfile') ? 'runs' : (sourceUrl.searchParams.get('where') || where),
       run: sourceUrl.searchParams.get('run') || undefined };
-    const item = { key, name, kind: 'vector', layer: markRaw(layer), source,
+    item = { key, name, kind: 'vector', layer: markRaw(layer), source,
       version: gj.selectionVersion, gj: markRaw(gj.type === 'Feature' ? { features: [gj] } : gj),
       color, fillOpacity: .22, visible: true };
-    if (interactive) layer.on('click', event => {
-      if (state.selectingFeatures && event.layer?.feature) { selectFeature(item, event.layer); return; }
-      const feature = event.layer?.feature;
-      const rows = Object.entries(feature?.properties || {})
-        .map(([key, value]) => `<div><b>${esc(key)}</b>: ${esc(value && typeof value === 'object' ? JSON.stringify(value) : value)}</div>`).join('');
-      if (rows) L.popup({ maxWidth: 260 }).setLatLng(event.latlng)
-        .setContent(`<div class="gp-popup">${rows}</div>`).openOn(map);
-    });
     layers.push(item);
     fit(layer);
-    const columns = [...new Set(features.slice(0, 200).flatMap(feature => Object.keys(feature.properties || {})))];
+    const columns = [...new Set(features.slice(0, 2000).flatMap(feature => Object.keys(feature.properties || {})))];
     return { table: { columns, rows: features.slice(0, 2000).map(feature => columns.map(column => feature.properties?.[column] ?? null)), total: gj.totalFeatures || features.length, truncated: (gj.totalFeatures || features.length) > 2000 } };
   } finally {
     if (pending.get(key) === token) pending.delete(key);
@@ -175,5 +174,5 @@ onBeforeUnmount(() => { revision++; resizeObserver?.disconnect(); document.remov
     </div>
     <div v-if="symbology" id="symbPop" class="symb-pop" style="right: 410px; top: 140px" @click.stop><div class="symb-h">{{ symbology.name }} <button @click="symbology = null">✕</button></div><label v-if="symbology.kind === 'vector'" class="symb-row">{{ t('Color') }}<input id="symbColor" v-model="symbology.color" type="color" @input="style(symbology)" /></label><label class="symb-row">{{ t('Opacity') }}<input v-if="symbology.kind === 'raster'" id="symbOpacity" v-model.number="symbology.opacity" type="range" min="0" max="1" step=".01" @input="style(symbology)" /><input v-else id="symbFill" v-model.number="symbology.fillOpacity" type="range" min="0" max="1" step=".01" @input="style(symbology)" /></label></div>
   </Teleport>
-  <Modal id="attrModal" close-id="attrClose" :open="!!attributes" :title="attributes ? t('{name} — {n} features', { name: attributes.name, n: attributes.gj.totalFeatures || attributes.gj.features.length }) : t('Attribute table')" @close="attributes = null"><div class="attr-toolbar"><input id="attrFilter" v-model="filter" class="text-input" :placeholder="t('Query — filter rows by any field…')" /><span id="attrCount">{{ t('{n} rows', { n: attrRows.length }) }}</span></div><div v-if="attributes?.gj.features.length > 2000">{{ t('(showing first {n})', { n: 2000 }) }}</div><div class="attr-table-wrap"><table id="attrTable" class="attr-table"><thead><tr><th>#</th><th v-for="column in attrColumns" :key="column">{{ column }}</th></tr></thead><tbody><tr v-for="(row, i) in attrRows" :key="i"><td>{{ i + 1 }}</td><td v-for="column in attrColumns" :key="column">{{ row[column] }}</td></tr></tbody></table></div></Modal>
+  <Modal id="attrModal" close-id="attrClose" :open="!!attributes" :title="attributes ? t('{name} — {n} features', { name: attributes.name, n: attributes.gj.totalFeatures || attributes.gj.features.length }) : t('Attribute table')" @close="attributes = null"><div class="attr-toolbar"><input id="attrFilter" v-model="filter" class="text-input" :placeholder="t('Query — filter rows by any field…')" :disabled="!attrColumns.length" /><span id="attrCount">{{ t('{n} rows', { n: attrRows.length }) }}</span></div><div v-if="attributes?.gj.features.length > 2000">{{ t('(showing first {n})', { n: 2000 }) }}</div><div v-if="attributes && !attrColumns.length" class="attr-empty">{{ t('This layer has no attribute fields. For a Shapefile, upload the matching .dbf file alongside the .shp file.') }}</div><div v-else class="attr-table-wrap"><table id="attrTable" class="attr-table"><thead><tr><th>#</th><th v-for="column in attrColumns" :key="column">{{ column }}</th></tr></thead><tbody><tr v-for="(row, i) in attrRows" :key="i"><td>{{ i + 1 }}</td><td v-for="column in attrColumns" :key="column">{{ row[column] }}</td></tr></tbody></table></div></Modal>
 </template>

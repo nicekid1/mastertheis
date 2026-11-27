@@ -558,6 +558,7 @@ button { font:inherit; color:inherit; }
 .attr-toolbar .text-input { margin:0; flex:1; }
 .attr-count { font-size:12px; color:var(--ink-muted); white-space:nowrap; }
 .attr-table-wrap { flex:1; overflow:auto; margin:0 18px 16px; border:1px solid var(--line-soft); border-radius:6px; }
+.attr-empty { margin:12px 18px 20px; padding:14px; border:1px solid var(--line-soft); border-radius:6px; color:var(--ink-muted); line-height:1.8; }
 .attr-table { border-collapse:collapse; width:100%; font-size:12px; font-family:var(--font-mono); }
 .attr-table th, .attr-table td { border-bottom:1px solid var(--line-soft); border-right:1px solid var(--line-soft);
   padding:5px 9px; text-align:left; white-space:nowrap; max-width:280px; overflow:hidden; text-overflow:ellipsis; }

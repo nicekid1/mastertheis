@@ -56,6 +56,8 @@ register('fa', {
   'Your next prompt will analyze these features.': 'درخواست بعدی شما روی این عارضه‌ها تحلیل می‌شود.',
   'Click features to add or remove them, then write your analysis request.': 'با کلیک، عارضه‌ها را انتخاب یا از انتخاب خارج کنید؛ سپس درخواست تحلیل را بنویسید.',
   'Reload this layer to enable feature selection.': 'برای فعال‌شدن انتخاب عارضه، لایه را دوباره باز کنید.',
+  'This feature has no attribute fields.': 'این عارضه ستون اطلاعاتی ندارد.',
+  'This layer has no attribute fields. For a Shapefile, upload the matching .dbf file alongside the .shp file.': 'این لایه ستون اطلاعاتی ندارد. برای شیپ‌فایل، فایل ‎.dbf‎ هم‌نام را همراه فایل ‎.shp‎ بارگذاری کنید.',
   'Select at most 5000 features per analysis': 'در هر تحلیل حداکثر ۵۰۰۰ عارضه انتخاب کنید.',
   'parcels': 'قطعات', 'zones': 'محدوده‌ها', 'buildings': 'ساختمان‌ها', 'services': 'خدمات',
   'subjects': 'عارضه‌های مورد تحلیل', 'roads': 'معابر', 'origins': 'مبدأها', 'coverage': 'محدودهٔ پوشش',
