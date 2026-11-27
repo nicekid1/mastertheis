@@ -35,7 +35,19 @@ docker --context rootless compose -p shahrkav \
 docker --context rootless compose -p shahrkav \
   -f docker-compose.rootless.yml -f docker-compose.server.yml ps
 
+for attempt in {1..30}; do
+  if docker --context rootless compose -p shahrkav \
+    -f docker-compose.rootless.yml -f docker-compose.server.yml \
+    exec -T gisclaw python -c \
+    "import urllib.request; page=urllib.request.urlopen('http://127.0.0.1:8765/', timeout=3).read(); assert page, 'empty web page'; print('Shahrkav is up')" \
+    2>/dev/null; then
+    exit 0
+  fi
+  sleep 2
+done
+
+echo "deploy: application did not become ready within 60 seconds; recent logs:" >&2
 docker --context rootless compose -p shahrkav \
   -f docker-compose.rootless.yml -f docker-compose.server.yml \
-  exec -T gisclaw python -c \
-  "import urllib.request; page=urllib.request.urlopen('http://127.0.0.1:8765/', timeout=5).read(); assert page, 'empty web page'; print('Shahrkav is up')"
+  logs --tail=80 gisclaw >&2
+exit 1
