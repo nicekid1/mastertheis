@@ -7,6 +7,7 @@ DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
 # may have left unreadable. Then use the rootless Docker context as dev.
 if [ "$(id -u)" -eq 0 ]; then
   chown -R dev:dev "$DIR/.git" "$DIR/app/web"
+  chmod -R u+rwX "$DIR/.git" "$DIR/app/web"
   chown dev:dev "$DIR/deploy.sh" "$DIR/Dockerfile.rootless"
   chmod 755 "$DIR/deploy.sh"
   exec sudo -u dev -H bash "$DIR/deploy.sh" "$@"
